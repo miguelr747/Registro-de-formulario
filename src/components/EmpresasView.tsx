@@ -302,23 +302,25 @@ export function EmpresasView({ user, onNotify, onOpenInterview }: EmpresasViewPr
                         >
                           <Eye className="w-4 h-4" />
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => openEdit(emp)}
-                          title="Editar empresa"
-                          className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
-                        >
-                          <Pencil className="w-4 h-4" />
-                        </button>
                         {user.rol === 'ADMINISTRADOR' && (
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(emp)}
-                            title="Desactivar o eliminar"
-                            className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openEdit(emp)}
+                              title="Editar empresa"
+                              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(emp)}
+                              title="Desactivar o eliminar"
+                              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
                         )}
                       </div>
                     </td>

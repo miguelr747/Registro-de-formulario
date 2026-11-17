@@ -4,11 +4,31 @@ import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
 
-const dataDir = path.resolve(process.cwd(), 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
+function resolveDataDir(): string {
+  if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
+    const tmpDir = path.join('/tmp', 'sde-data');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    return tmpDir;
+  }
+  const localDir = path.resolve(process.cwd(), 'data');
+  try {
+    if (!fs.existsSync(localDir)) {
+      fs.mkdirSync(localDir, { recursive: true });
+    }
+    fs.accessSync(localDir, fs.constants.W_OK);
+    return localDir;
+  } catch {
+    const tmpDir = path.join('/tmp', 'sde-data');
+    if (!fs.existsSync(tmpDir)) {
+      fs.mkdirSync(tmpDir, { recursive: true });
+    }
+    return tmpDir;
+  }
 }
 
+const dataDir = resolveDataDir();
 const dbPath = path.join(dataDir, 'diagnostico.db');
 export const db = new Database(dbPath);
 db.pragma('journal_mode = WAL');

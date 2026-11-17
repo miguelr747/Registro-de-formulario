@@ -127,9 +127,7 @@ export function ResultadosView({ user, onNotify }: ResultadosViewProps) {
     const modulos = JSON.parse(entrevista.modulos_snapshot_json || '[]') as Modulo[];
     const preguntas = JSON.parse(entrevista.preguntas_snapshot_json || '[]') as Pregunta[];
     const respMap = new Map(respuestas.map((r) => [r.pregunta_id, r]));
-    const canEditAnswers =
-      user.rol === 'ADMINISTRADOR' ||
-      (user.rol === 'ENTREVISTADOR' && entrevista.estado !== 'Revisada');
+    const canEditAnswers = user.rol === 'ADMINISTRADOR';
 
     return (
       <div className="space-y-6">

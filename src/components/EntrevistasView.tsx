@@ -164,8 +164,8 @@ export function EntrevistasView({
 
   if (activeEntrevista) {
     const isReadOnly =
-      activeEntrevista.estado === 'Revisada' ||
-      (user.rol === 'EVALUADO' && activeEntrevista.estado === 'Completada');
+      (activeEntrevista.estado === 'Completada' || activeEntrevista.estado === 'Revisada') &&
+      user.rol !== 'ADMINISTRADOR';
 
     return (
       <div className="space-y-4">
@@ -380,15 +380,25 @@ export function EntrevistasView({
                     {user.rol !== 'EVALUADO' && (
                       <td className="py-3 px-4 whitespace-nowrap">
                         <div className="inline-flex items-center gap-2">
-                          <button
-                            type="button"
-                            onClick={() => toggleLinkActive(ent)}
-                            className={`text-xs font-medium underline-offset-2 hover:underline ${
-                              ent.enlace_evaluado_activo === 1 ? 'text-sky-700' : 'text-slate-400'
-                            }`}
-                          >
-                            {ent.enlace_evaluado_activo === 1 ? 'Activo' : 'Inactivo'}
-                          </button>
+                          {user.rol === 'ADMINISTRADOR' ? (
+                            <button
+                              type="button"
+                              onClick={() => toggleLinkActive(ent)}
+                              className={`text-xs font-medium underline-offset-2 hover:underline ${
+                                ent.enlace_evaluado_activo === 1 ? 'text-sky-700' : 'text-slate-400'
+                              }`}
+                            >
+                              {ent.enlace_evaluado_activo === 1 ? 'Activo' : 'Inactivo'}
+                            </button>
+                          ) : (
+                            <span
+                              className={`text-xs font-medium ${
+                                ent.enlace_evaluado_activo === 1 ? 'text-sky-700' : 'text-slate-400'
+                              }`}
+                            >
+                              {ent.enlace_evaluado_activo === 1 ? 'Activo' : 'Inactivo'}
+                            </span>
+                          )}
                           {ent.enlace_evaluado_activo === 1 && (
                             <button
                               type="button"
@@ -413,7 +423,13 @@ export function EntrevistasView({
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#0F2942] hover:bg-[#173B5E] rounded-lg"
                       >
                         <PlayCircle className="w-3.5 h-3.5" />
-                        <span>{ent.estado === 'Borrador' ? 'Iniciar' : 'Diligenciar'}</span>
+                        <span>
+                          {(ent.estado === 'Completada' || ent.estado === 'Revisada') && user.rol !== 'ADMINISTRADOR'
+                            ? 'Ver'
+                            : ent.estado === 'Borrador'
+                            ? 'Iniciar'
+                            : 'Diligenciar'}
+                        </span>
                       </button>
                     </td>
                   </tr>

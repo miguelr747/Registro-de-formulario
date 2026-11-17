@@ -10,14 +10,22 @@ function getJwtSecret(): string {
   if (process.env.JWT_SECRET && process.env.JWT_SECRET !== 'MY_JWT_SECRET') {
     return process.env.JWT_SECRET;
   }
-  const secretPath = path.resolve(process.cwd(), 'data', '.jwt_secret');
-  if (fs.existsSync(secretPath)) {
-    return fs.readFileSync(secretPath, 'utf-8').trim();
+  if (process.env.VERCEL === '1' || process.env.VERCEL_ENV) {
+    const seed = process.env.VERCEL_PROJECT_ID || process.env.VERCEL_URL || 'sde-diagnostico-vercel-secret-2026';
+    return crypto.createHash('sha256').update(seed).digest('hex');
   }
-  const generated = crypto.randomBytes(48).toString('hex');
-  fs.mkdirSync(path.dirname(secretPath), { recursive: true });
-  fs.writeFileSync(secretPath, generated, { mode: 0o600 });
-  return generated;
+  const secretPath = path.resolve(process.cwd(), 'data', '.jwt_secret');
+  try {
+    if (fs.existsSync(secretPath)) {
+      return fs.readFileSync(secretPath, 'utf-8').trim();
+    }
+    const generated = crypto.randomBytes(48).toString('hex');
+    fs.mkdirSync(path.dirname(secretPath), { recursive: true });
+    fs.writeFileSync(secretPath, generated, { mode: 0o600 });
+    return generated;
+  } catch {
+    return crypto.createHash('sha256').update('sde-diagnostico-fallback-2026').digest('hex');
+  }
 }
 
 const JWT_SECRET = getJwtSecret();
