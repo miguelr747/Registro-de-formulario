@@ -202,3 +202,21 @@ export interface DashboardStats {
   avancePorModulo: Array<{ numero: number; titulo: string; porcentaje: number }>;
   actividadReciente: ActividadReciente[];
 }
+
+export type TipoPestana = 'sistema' | 'personalizada' | 'enlace';
+
+export interface PestanaMenu {
+  id: number;
+  clave: string;
+  titulo: string;
+  icono: string;
+  tipo: TipoPestana;
+  vista_sistema: string;
+  contenido: string;
+  url_externa: string;
+  orden: number;
+  activo: number;
+  protegida: number;
+  created_at?: string;
+}
+

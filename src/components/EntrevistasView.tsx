@@ -10,11 +10,13 @@ import {
   Search,
   Settings2,
   RefreshCw,
+  Pencil,
+  Trash2,
 } from 'lucide-react';
 import { apiFetch } from '../utils/api';
 import type { Empresa, Entrevista, Respuesta, Usuario } from '../types';
 import { DynamicInterviewForm } from './DynamicInterviewForm';
-import { Modal } from './Modal';
+import { ConfirmModal, Modal } from './Modal';
 
 interface EntrevistasViewProps {
   user: Usuario;
@@ -55,6 +57,18 @@ export function EntrevistasView({
   });
   const [creating, setCreating] = useState(false);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+
+  // Admin edit / delete modal
+  const [editTarget, setEditTarget] = useState<Entrevista | null>(null);
+  const [editForm, setEditForm] = useState({
+    nombre_entrevistado: '',
+    cargo_entrevistado: '',
+    area_trabajo: '',
+    estado: 'Borrador' as Entrevista['estado'],
+    observaciones_generales: '',
+  });
+  const [savingEdit, setSavingEdit] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Entrevista | null>(null);
 
   const loadList = async () => {
     setLoading(true);
@@ -151,6 +165,48 @@ export function EntrevistasView({
       await loadList();
     } catch (err) {
       onNotify('error', err instanceof Error ? err.message : 'Error cambiando estado del enlace.');
+    }
+  };
+
+  const openEditModal = (ent: Entrevista) => {
+    setEditTarget(ent);
+    setEditForm({
+      nombre_entrevistado: ent.nombre_entrevistado,
+      cargo_entrevistado: ent.cargo_entrevistado,
+      area_trabajo: ent.area_trabajo,
+      estado: ent.estado,
+      observaciones_generales: ent.observaciones_generales || '',
+    });
+  };
+
+  const handleSaveEdit = async (e: FormEvent) => {
+    e.preventDefault();
+    if (!editTarget) return;
+    setSavingEdit(true);
+    try {
+      await apiFetch(`/api/entrevistas/${editTarget.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(editForm),
+      });
+      onNotify('success', `Entrevista ${editTarget.codigo} actualizada.`);
+      setEditTarget(null);
+      await loadList();
+    } catch (err) {
+      onNotify('error', err instanceof Error ? err.message : 'Error actualizando entrevista.');
+    } finally {
+      setSavingEdit(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    try {
+      await apiFetch(`/api/entrevistas/${deleteTarget.id}`, { method: 'DELETE' });
+      onNotify('success', `Entrevista ${deleteTarget.codigo} eliminada.`);
+      setDeleteTarget(null);
+      await loadList();
+    } catch (err) {
+      onNotify('error', err instanceof Error ? err.message : 'Error eliminando entrevista.');
     }
   };
 
@@ -417,20 +473,42 @@ export function EntrevistasView({
                       </td>
                     )}
                     <td className="py-3 px-4 text-right whitespace-nowrap">
-                      <button
-                        type="button"
-                        onClick={() => openRunner(ent.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#0F2942] hover:bg-[#173B5E] rounded-lg"
-                      >
-                        <PlayCircle className="w-3.5 h-3.5" />
-                        <span>
-                          {(ent.estado === 'Completada' || ent.estado === 'Revisada') && user.rol !== 'ADMINISTRADOR'
-                            ? 'Ver'
-                            : ent.estado === 'Borrador'
-                            ? 'Iniciar'
-                            : 'Diligenciar'}
-                        </span>
-                      </button>
+                      <div className="inline-flex items-center gap-1.5">
+                        {user.rol === 'ADMINISTRADOR' && (
+                          <>
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(ent)}
+                              title="Editar datos de la entrevista"
+                              className="p-1.5 text-slate-500 hover:text-slate-900 hover:bg-slate-100 rounded-md"
+                            >
+                              <Pencil className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDeleteTarget(ent)}
+                              title="Eliminar entrevista"
+                              className="p-1.5 text-slate-500 hover:text-red-600 hover:bg-red-50 rounded-md"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => openRunner(ent.id)}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-white bg-[#0F2942] hover:bg-[#173B5E] rounded-lg"
+                        >
+                          <PlayCircle className="w-3.5 h-3.5" />
+                          <span>
+                            {(ent.estado === 'Completada' || ent.estado === 'Revisada') && user.rol !== 'ADMINISTRADOR'
+                              ? 'Ver'
+                              : ent.estado === 'Borrador'
+                              ? 'Iniciar'
+                              : 'Diligenciar'}
+                          </span>
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}
@@ -550,6 +628,106 @@ export function EntrevistasView({
           </button>
         </div>
       </Modal>
+
+      {/* Admin Edit Interview Modal */}
+      <Modal
+        open={!!editTarget}
+        onClose={() => setEditTarget(null)}
+        title={editTarget ? `Editar Entrevista · ${editTarget.codigo}` : 'Editar Entrevista'}
+        subtitle="Modifique los datos generales o el estado de la entrevista."
+      >
+        <form id="edit-interview-form" onSubmit={handleSaveEdit} className="space-y-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Nombre del entrevistado *</label>
+              <input
+                type="text"
+                required
+                value={editForm.nombre_entrevistado}
+                onChange={(e) => setEditForm({ ...editForm, nombre_entrevistado: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Cargo del entrevistado *</label>
+              <input
+                type="text"
+                required
+                value={editForm.cargo_entrevistado}
+                onChange={(e) => setEditForm({ ...editForm, cargo_entrevistado: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Área de trabajo *</label>
+              <input
+                type="text"
+                required
+                value={editForm.area_trabajo}
+                onChange={(e) => setEditForm({ ...editForm, area_trabajo: e.target.value })}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Estado</label>
+              <select
+                value={editForm.estado}
+                onChange={(e) => setEditForm({ ...editForm, estado: e.target.value as Entrevista['estado'] })}
+                className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg bg-white"
+              >
+                <option value="Borrador">Borrador</option>
+                <option value="En progreso">En progreso</option>
+                <option value="Completada">Completada</option>
+                <option value="Revisada">Revisada</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Observaciones generales</label>
+            <textarea
+              rows={2}
+              value={editForm.observaciones_generales}
+              onChange={(e) => setEditForm({ ...editForm, observaciones_generales: e.target.value })}
+              className="w-full px-3 py-2 text-sm border border-slate-300 rounded-lg"
+            />
+          </div>
+        </form>
+        <div className="mt-6 pt-4 border-t border-slate-200 flex justify-end gap-3">
+          <button
+            type="button"
+            onClick={() => setEditTarget(null)}
+            className="px-4 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50"
+          >
+            Cancelar
+          </button>
+          <button
+            type="submit"
+            form="edit-interview-form"
+            disabled={savingEdit}
+            className="px-4 py-2 text-sm font-medium text-white bg-[#0F2942] hover:bg-[#173B5E] rounded-lg disabled:opacity-50"
+          >
+            {savingEdit ? 'Guardando...' : 'Guardar cambios'}
+          </button>
+        </div>
+      </Modal>
+
+      <ConfirmModal
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={handleDelete}
+        title="Eliminar Entrevista"
+        description={
+          deleteTarget
+            ? `¿Confirma eliminar la entrevista "${deleteTarget.codigo}" (${deleteTarget.empresa_nombre})? Se eliminarán sus respuestas asociadas.`
+            : ''
+        }
+        confirmLabel="Eliminar"
+        destructive
+      />
     </div>
   );
 }

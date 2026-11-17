@@ -1,53 +1,107 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
-  LayoutDashboard,
   Building2,
-  ClipboardList,
-  HelpCircle,
-  FileCheck2,
-  Activity,
-  FileBarChart,
-  Users,
-  LogOut,
+  ShieldCheck,
+  Lock,
   Menu,
   X,
 } from 'lucide-react';
 import { apiFetch, getStoredToken, setStoredToken } from './utils/api';
-import type { Usuario } from './types';
+import { resolveTabIcon } from './utils/tabIcons';
+import type { PestanaMenu, Usuario } from './types';
 import { ToastContainer, type ToastMessage } from './components/Toast';
-import { LoginView } from './components/LoginView';
-import { DashboardView } from './components/DashboardView';
 import { EmpresasView } from './components/EmpresasView';
 import { EntrevistasView } from './components/EntrevistasView';
-import { BancoPreguntasView } from './components/BancoPreguntasView';
 import { ResultadosView } from './components/ResultadosView';
+import { AdminView } from './components/AdminView';
+import { DashboardView } from './components/DashboardView';
 import { DiagnosticoView } from './components/DiagnosticoView';
 import { InformesView } from './components/InformesView';
-import { UsuariosView } from './components/UsuariosView';
+import { BancoPreguntasView } from './components/BancoPreguntasView';
+import { CustomTabView } from './components/CustomTabView';
 import { EvaluacionPublicaView } from './components/EvaluacionPublicaView';
 
-interface NavItem {
-  id: string;
-  label: string;
-  icon: typeof LayoutDashboard;
-  roles: Array<Usuario['rol']>;
-}
+const VISITOR_USER: Usuario = {
+  id: 0,
+  nombre: 'Encuestado',
+  username: 'visitante',
+  email: '',
+  rol: 'ENTREVISTADOR',
+  activo: 1,
+  ultimo_acceso: null,
+  created_at: '',
+};
 
-const NAV_ITEMS: NavItem[] = [
-  { id: 'dashboard', label: 'Panel Principal', icon: LayoutDashboard, roles: ['ADMINISTRADOR', 'ENTREVISTADOR'] },
-  { id: 'empresas', label: 'Empresas', icon: Building2, roles: ['ADMINISTRADOR', 'ENTREVISTADOR'] },
-  { id: 'entrevistas', label: 'Entrevistas', icon: ClipboardList, roles: ['ADMINISTRADOR', 'ENTREVISTADOR', 'EVALUADO'] },
-  { id: 'banco', label: 'Banco de Preguntas', icon: HelpCircle, roles: ['ADMINISTRADOR'] },
-  { id: 'resultados', label: 'Resultados', icon: FileCheck2, roles: ['ADMINISTRADOR', 'ENTREVISTADOR'] },
-  { id: 'diagnostico', label: 'Diagnóstico Logístico', icon: Activity, roles: ['ADMINISTRADOR', 'ENTREVISTADOR'] },
-  { id: 'informes', label: 'Informes y Exportación', icon: FileBarChart, roles: ['ADMINISTRADOR', 'ENTREVISTADOR'] },
-  { id: 'usuarios', label: 'Usuarios', icon: Users, roles: ['ADMINISTRADOR'] },
+const ADMIN_USER: Usuario = {
+  id: 1,
+  nombre: 'Administrador',
+  username: 'admin',
+  email: 'admin@diagnostico.com',
+  rol: 'ADMINISTRADOR',
+  activo: 1,
+  ultimo_acceso: null,
+  created_at: '',
+};
+
+const DEFAULT_TABS: PestanaMenu[] = [
+  {
+    id: 1,
+    clave: 'empresas',
+    titulo: 'Empresas',
+    icono: 'Building2',
+    tipo: 'sistema',
+    vista_sistema: 'empresas',
+    contenido: '',
+    url_externa: '',
+    orden: 1,
+    activo: 1,
+    protegida: 0,
+  },
+  {
+    id: 2,
+    clave: 'entrevistas',
+    titulo: 'Entrevistas',
+    icono: 'ClipboardList',
+    tipo: 'sistema',
+    vista_sistema: 'entrevistas',
+    contenido: '',
+    url_externa: '',
+    orden: 2,
+    activo: 1,
+    protegida: 0,
+  },
+  {
+    id: 3,
+    clave: 'resultados',
+    titulo: 'Resultados',
+    icono: 'FileCheck2',
+    tipo: 'sistema',
+    vista_sistema: 'resultados',
+    contenido: '',
+    url_externa: '',
+    orden: 3,
+    activo: 1,
+    protegida: 0,
+  },
+  {
+    id: 4,
+    clave: 'admin',
+    titulo: 'Administración',
+    icono: 'ShieldCheck',
+    tipo: 'sistema',
+    vista_sistema: 'admin',
+    contenido: '',
+    url_externa: '',
+    orden: 4,
+    activo: 1,
+    protegida: 1,
+  },
 ];
 
 export default function App() {
-  const [user, setUser] = useState<Usuario | null>(null);
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [activeTab, setActiveTab] = useState<string>('dashboard');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [tabs, setTabs] = useState<PestanaMenu[]>(DEFAULT_TABS);
+  const [activeTabKey, setActiveTabKey] = useState<string>('entrevistas');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openInterviewId, setOpenInterviewId] = useState<number | null>(null);
 
@@ -66,29 +120,46 @@ export default function App() {
     }, 4500);
   }, []);
 
-  useEffect(() => {
-    const token = getStoredToken();
-    if (!token) {
-      setCheckingSession(false);
-      return;
+  const loadTabs = useCallback(async () => {
+    try {
+      const data = await apiFetch<PestanaMenu[]>('/api/pestanas');
+      if (Array.isArray(data) && data.length > 0) {
+        setTabs(data);
+      }
+    } catch {
+      // Keep current tabs on transient error
     }
-    apiFetch<{ user: Usuario }>('/api/auth/me')
+  }, []);
+
+  useEffect(() => {
+    loadTabs();
+    const token = getStoredToken();
+    if (!token) return;
+    apiFetch<{ isAdmin: boolean }>('/api/admin/verify')
       .then((res) => {
-        setUser(res.user);
-        if (res.user.rol === 'EVALUADO') {
-          setActiveTab('entrevistas');
+        if (res.isAdmin) {
+          setIsAdmin(true);
+        } else {
+          setStoredToken(null);
         }
       })
       .catch(() => {
         setStoredToken(null);
-      })
-      .finally(() => setCheckingSession(false));
-  }, []);
+      });
+  }, [loadTabs]);
 
-  const handleLogout = () => {
+  const visibleTabs = tabs.filter((t) => t.activo === 1);
+
+  useEffect(() => {
+    if (visibleTabs.length > 0 && !visibleTabs.some((t) => t.clave === activeTabKey)) {
+      setActiveTabKey(visibleTabs[0].clave);
+    }
+  }, [visibleTabs, activeTabKey]);
+
+  const handleLockAdmin = () => {
     setStoredToken(null);
-    setUser(null);
-    setActiveTab('dashboard');
+    setIsAdmin(false);
+    notify('info', 'Modo Administrador bloqueado. La página volvió a modo solo llenado.');
   };
 
   if (publicToken) {
@@ -107,36 +178,88 @@ export default function App() {
     );
   }
 
-  if (checkingSession) {
-    return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center text-sm text-slate-500">
-        Verificando sesión...
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <>
-        <LoginView
-          onLoginSuccess={(loggedUser) => {
-            setUser(loggedUser);
-            setActiveTab(loggedUser.rol === 'EVALUADO' ? 'entrevistas' : 'dashboard');
-            notify('success', `Bienvenido, ${loggedUser.nombre}.`);
-          }}
-          onOpenToken={(token) => setPublicToken(token)}
-        />
-        <ToastContainer toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((t) => t.id !== id))} />
-      </>
-    );
-  }
-
-  const allowedNav = NAV_ITEMS.filter((item) => item.roles.includes(user.rol));
-  const currentNavLabel = allowedNav.find((n) => n.id === activeTab)?.label || 'Sistema de Diagnóstico';
+  const currentUser = isAdmin ? ADMIN_USER : VISITOR_USER;
+  const activeTabObj = visibleTabs.find((t) => t.clave === activeTabKey) || visibleTabs[0];
+  const currentNavLabel = activeTabObj?.titulo || 'Sistema de Diagnóstico';
 
   const handleOpenInterviewFromCompany = (id: number) => {
     setOpenInterviewId(id);
-    setActiveTab('entrevistas');
+    const interviewsTab = visibleTabs.find((t) => t.tipo === 'sistema' && t.vista_sistema === 'entrevistas');
+    if (interviewsTab) {
+      setActiveTabKey(interviewsTab.clave);
+    }
+  };
+
+  const openAdminTab = () => {
+    const adminTab = visibleTabs.find((t) => t.protegida === 1 || t.vista_sistema === 'admin');
+    if (adminTab) {
+      setActiveTabKey(adminTab.clave);
+    }
+  };
+
+  const renderTabContent = (tab: PestanaMenu | undefined) => {
+    if (!tab) return null;
+    if (tab.tipo === 'personalizada' || tab.tipo === 'enlace') {
+      return <CustomTabView tab={tab} />;
+    }
+
+    switch (tab.vista_sistema) {
+      case 'empresas':
+        return (
+          <EmpresasView
+            user={currentUser}
+            onNotify={notify}
+            onOpenInterview={handleOpenInterviewFromCompany}
+          />
+        );
+      case 'entrevistas':
+        return (
+          <EntrevistasView
+            user={currentUser}
+            initialOpenId={openInterviewId}
+            onClearInitialOpen={() => setOpenInterviewId(null)}
+            onOpenBancoPreguntas={openAdminTab}
+            onNotify={notify}
+          />
+        );
+      case 'resultados':
+        return <ResultadosView user={currentUser} onNotify={notify} />;
+      case 'dashboard':
+        return <DashboardView user={currentUser} onNavigate={(key) => setActiveTabKey(key)} />;
+      case 'diagnostico':
+        return <DiagnosticoView user={currentUser} onNotify={notify} />;
+      case 'informes':
+        return <InformesView onNotify={notify} />;
+      case 'banco':
+        return isAdmin ? (
+          <BancoPreguntasView onNotify={notify} />
+        ) : (
+          <AdminView
+            isAdmin={isAdmin}
+            adminUser={ADMIN_USER}
+            tabs={tabs}
+            onTabsChanged={loadTabs}
+            onUnlockSuccess={() => setIsAdmin(true)}
+            onLockAdmin={handleLockAdmin}
+            onOpenInterview={handleOpenInterviewFromCompany}
+            onNotify={notify}
+          />
+        );
+      case 'admin':
+      default:
+        return (
+          <AdminView
+            isAdmin={isAdmin}
+            adminUser={ADMIN_USER}
+            tabs={tabs}
+            onTabsChanged={loadTabs}
+            onUnlockSuccess={() => setIsAdmin(true)}
+            onLockAdmin={handleLockAdmin}
+            onOpenInterview={handleOpenInterviewFromCompany}
+            onNotify={notify}
+          />
+        );
+    }
   };
 
   return (
@@ -155,40 +278,67 @@ export default function App() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-          {allowedNav.map((item) => {
-            const Icon = item.icon;
-            const active = activeTab === item.id;
+          {visibleTabs.map((item) => {
+            const isProtectedAdmin = item.protegida === 1 || item.vista_sistema === 'admin';
+            const Icon = isProtectedAdmin ? (isAdmin ? ShieldCheck : Lock) : resolveTabIcon(item.icono);
+            const active = activeTabKey === item.clave;
             return (
               <button
                 key={item.id}
                 type="button"
-                onClick={() => setActiveTab(item.id)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                onClick={() => setActiveTabKey(item.clave)}
+                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-sky-600 text-white'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4 shrink-0" />
-                <span className="truncate">{item.label}</span>
+                <span className="flex items-center gap-3 min-w-0">
+                  <Icon className="w-4 h-4 shrink-0" />
+                  <span className="truncate">{item.titulo}</span>
+                </span>
+                {isProtectedAdmin && (
+                  <span
+                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                      isAdmin ? 'bg-emerald-500/20 text-emerald-200' : 'bg-white/10 text-slate-300'
+                    }`}
+                  >
+                    {isAdmin ? 'ON' : 'KEY'}
+                  </span>
+                )}
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10 space-y-3">
+        <div className="p-4 border-t border-white/10 space-y-2.5">
           <div className="text-xs">
-            <p className="font-semibold text-white truncate">{user.nombre}</p>
-            <p className="text-slate-400 font-mono text-[11px]">{user.rol}</p>
+            <p className="font-semibold text-white">
+              {isAdmin ? 'Modo Administrador' : 'Acceso Directo'}
+            </p>
+            <p className="text-slate-400 text-[11px] mt-0.5">
+              {isAdmin ? 'Edición completa habilitada' : 'Diligenciamiento de formularios'}
+            </p>
           </div>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-200 bg-white/5 hover:bg-white/15 rounded-lg transition-colors"
-          >
-            <LogOut className="w-3.5 h-3.5" />
-            <span>Cerrar sesión</span>
-          </button>
+          {isAdmin ? (
+            <button
+              type="button"
+              onClick={handleLockAdmin}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-200 bg-white/5 hover:bg-white/15 rounded-lg transition-colors"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Bloquear edición</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={openAdminTab}
+              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-sky-200 bg-white/5 hover:bg-white/15 rounded-lg transition-colors"
+            >
+              <Lock className="w-3.5 h-3.5" />
+              <span>Desbloquear administración</span>
+            </button>
+          )}
         </div>
       </aside>
 
@@ -208,15 +358,16 @@ export default function App() {
               </button>
             </div>
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-              {allowedNav.map((item) => {
-                const Icon = item.icon;
-                const active = activeTab === item.id;
+              {visibleTabs.map((item) => {
+                const isProtectedAdmin = item.protegida === 1 || item.vista_sistema === 'admin';
+                const Icon = isProtectedAdmin ? (isAdmin ? ShieldCheck : Lock) : resolveTabIcon(item.icono);
+                const active = activeTabKey === item.clave;
                 return (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => {
-                      setActiveTab(item.id);
+                      setActiveTabKey(item.clave);
                       setMobileMenuOpen(false);
                     }}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium ${
@@ -224,21 +375,26 @@ export default function App() {
                     }`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
-                    <span>{item.label}</span>
+                    <span className="truncate">{item.titulo}</span>
                   </button>
                 );
               })}
             </nav>
-            <div className="p-4 border-t border-white/10">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-200 bg-white/10 rounded-lg"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-                <span>Cerrar sesión</span>
-              </button>
-            </div>
+            {isAdmin && (
+              <div className="p-4 border-t border-white/10">
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleLockAdmin();
+                    setMobileMenuOpen(false);
+                  }}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-200 bg-white/10 rounded-lg"
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Bloquear edición</span>
+                </button>
+              </div>
+            )}
           </aside>
         </div>
       )}
@@ -263,49 +419,22 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex items-center gap-4 shrink-0 text-xs text-slate-600">
-            <span className="hidden sm:inline">
-              {user.nombre} <span className="text-slate-400">·</span>{' '}
-              <span className="font-mono text-[#0F2942] font-semibold">{user.rol}</span>
-            </span>
+          <div className="flex items-center gap-3 shrink-0 text-xs">
+            {isAdmin ? (
+              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
+                <ShieldCheck className="w-3.5 h-3.5" />
+                <span>Administrador activo</span>
+              </span>
+            ) : (
+              <span className="text-slate-500 hidden sm:inline">
+                Modo formulario abierto
+              </span>
+            )}
           </div>
         </header>
 
         <main className="flex-1 p-4 sm:p-8 max-w-[1440px] w-full mx-auto">
-          {activeTab === 'dashboard' && user.rol !== 'EVALUADO' && (
-            <DashboardView user={user} onNavigate={setActiveTab} />
-          )}
-          {activeTab === 'empresas' && user.rol !== 'EVALUADO' && (
-            <EmpresasView
-              user={user}
-              onNotify={notify}
-              onOpenInterview={handleOpenInterviewFromCompany}
-            />
-          )}
-          {activeTab === 'entrevistas' && (
-            <EntrevistasView
-              user={user}
-              initialOpenId={openInterviewId}
-              onClearInitialOpen={() => setOpenInterviewId(null)}
-              onOpenBancoPreguntas={() => setActiveTab('banco')}
-              onNotify={notify}
-            />
-          )}
-          {activeTab === 'banco' && user.rol === 'ADMINISTRADOR' && (
-            <BancoPreguntasView onNotify={notify} />
-          )}
-          {activeTab === 'resultados' && user.rol !== 'EVALUADO' && (
-            <ResultadosView user={user} onNotify={notify} />
-          )}
-          {activeTab === 'diagnostico' && user.rol !== 'EVALUADO' && (
-            <DiagnosticoView user={user} onNotify={notify} />
-          )}
-          {activeTab === 'informes' && user.rol !== 'EVALUADO' && (
-            <InformesView onNotify={notify} />
-          )}
-          {activeTab === 'usuarios' && user.rol === 'ADMINISTRADOR' && (
-            <UsuariosView currentUser={user} onNotify={notify} />
-          )}
+          {renderTabContent(activeTabObj)}
         </main>
       </div>
 

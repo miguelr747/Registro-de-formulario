@@ -200,9 +200,40 @@ export function initDatabase() {
       detalle TEXT NOT NULL,
       created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
+
+    CREATE TABLE IF NOT EXISTS pestanas_menu (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      clave TEXT UNIQUE NOT NULL,
+      titulo TEXT NOT NULL,
+      icono TEXT NOT NULL DEFAULT 'FileText',
+      tipo TEXT NOT NULL DEFAULT 'personalizada' CHECK(tipo IN ('sistema', 'personalizada', 'enlace')),
+      vista_sistema TEXT DEFAULT '',
+      contenido TEXT DEFAULT '',
+      url_externa TEXT DEFAULT '',
+      orden INTEGER NOT NULL DEFAULT 1,
+      activo INTEGER NOT NULL DEFAULT 1,
+      protegida INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    );
   `);
 
+  seedDefaultSidebarTabs();
   seedInitialData();
+}
+
+function seedDefaultSidebarTabs() {
+  const count = (db.prepare('SELECT COUNT(*) as c FROM pestanas_menu').get() as { c: number }).c;
+  if (count > 0) return;
+
+  const insertTab = db.prepare(`
+    INSERT INTO pestanas_menu (clave, titulo, icono, tipo, vista_sistema, contenido, url_externa, orden, activo, protegida)
+    VALUES (?, ?, ?, 'sistema', ?, '', '', ?, 1, ?)
+  `);
+
+  insertTab.run('empresas', 'Empresas', 'Building2', 'empresas', 1, 0);
+  insertTab.run('entrevistas', 'Entrevistas', 'ClipboardList', 'entrevistas', 2, 0);
+  insertTab.run('resultados', 'Resultados', 'FileCheck2', 'resultados', 3, 0);
+  insertTab.run('admin', 'Administración', 'ShieldCheck', 'admin', 4, 1);
 }
 
 function seedInitialData() {

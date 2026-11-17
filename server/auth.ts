@@ -3,7 +3,6 @@ import fs from 'fs';
 import path from 'path';
 import jwt from 'jsonwebtoken';
 import type { Request, Response, NextFunction } from 'express';
-import { db } from './db.ts';
 import type { RolUsuario } from '../src/types.ts';
 
 function getJwtSecret(): string {
@@ -54,38 +53,40 @@ export function verifyToken(token: string): AuthPayload | null {
   }
 }
 
-export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+export function extractBearerUser(req: AuthenticatedRequest): AuthPayload | null {
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  const token = bearerToken;
+  if (!bearerToken) return null;
+  return verifyToken(bearerToken);
+}
 
-  if (!token) {
+export function optionalAuth(req: AuthenticatedRequest, _res: Response, next: NextFunction) {
+  const decoded = extractBearerUser(req);
+  if (decoded) {
+    req.user = decoded;
+  }
+  next();
+}
+
+export function requireAuth(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const decoded = extractBearerUser(req);
+  if (!decoded) {
     res.status(401).json({ error: 'Sesión no iniciada o token ausente.' });
     return;
   }
+  req.user = decoded;
+  next();
+}
 
-  const decoded = verifyToken(token);
-  if (!decoded) {
-    res.status(401).json({ error: 'Token inválido o expirado.' });
+export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  const decoded = extractBearerUser(req);
+  if (!decoded || decoded.rol !== 'ADMINISTRADOR') {
+    res.status(403).json({
+      error: 'Requiere desbloquear el modo Administrador con la contraseña correspondiente.',
+    });
     return;
   }
-
-  const dbUser = db
-    .prepare('SELECT id, nombre, username, email, rol, activo FROM usuarios WHERE id = ?')
-    .get(decoded.id) as { id: number; nombre: string; username: string; email: string; rol: RolUsuario; activo: number } | undefined;
-
-  if (!dbUser || dbUser.activo !== 1) {
-    res.status(403).json({ error: 'Usuario inactivo o no autorizado.' });
-    return;
-  }
-
-  req.user = {
-    id: dbUser.id,
-    nombre: dbUser.nombre,
-    username: dbUser.username,
-    email: dbUser.email,
-    rol: dbUser.rol,
-  };
+  req.user = decoded;
   next();
 }
 
