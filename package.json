@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "tsx server.ts",
-    "build": "vite build && esbuild server/vercel.ts --bundle --platform=node --format=esm --packages=external --outfile=api/index.mjs",
+    "build": "vite build && esbuild server/vercel.ts --bundle --platform=node --format=esm --packages=external --outfile=api/_handler.js",
     "start": "NODE_ENV=production node server.ts",
     "preview": "vite preview",
-    "clean": "rm -rf dist server.js api/index.mjs",
+    "clean": "rm -rf dist server.js api/_handler.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

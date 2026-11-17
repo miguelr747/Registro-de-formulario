@@ -1605,5 +1605,9 @@ export function createApp() {
     }
   });
 
+  app.use('/api', (req, res) => {
+    res.status(404).json({ error: `Ruta API no encontrada: ${req.method} ${req.originalUrl}` });
+  });
+
   return app;
 }
