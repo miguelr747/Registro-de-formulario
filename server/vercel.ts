@@ -3,6 +3,60 @@ import { createApp } from './app.ts';
 
 let cachedApp: express.Express | null = null;
 
+function normalizeVercelUrl(req: express.Request): string {
+  const urlObj = new URL(req.url || '/', 'http://localhost');
+  const rawPath = urlObj.searchParams.get('__vercel_path');
+
+  if (rawPath && rawPath.length > 0) {
+    let decoded = rawPath;
+    try {
+      decoded = decodeURIComponent(rawPath);
+    } catch {
+      decoded = rawPath;
+    }
+    const cleanPath = decoded.replace(/^\/+/, '');
+    urlObj.searchParams.delete('__vercel_path');
+    const restSearch = urlObj.searchParams.toString();
+    if (cleanPath.includes('?')) {
+      const [pathPart, queryPart] = cleanPath.split('?', 2);
+      const mergedParams = new URLSearchParams(queryPart);
+      urlObj.searchParams.forEach((v, k) => mergedParams.append(k, v));
+      const mergedStr = mergedParams.toString();
+      return `/api/${pathPart.replace(/^\/+/, '')}${mergedStr ? `?${mergedStr}` : ''}`;
+    }
+    return `/api/${cleanPath}${restSearch ? `?${restSearch}` : ''}`;
+  }
+
+  const origUriHeader = req.headers['x-vercel-original-uri'] || req.headers['x-forwarded-uri'];
+  const origUri = Array.isArray(origUriHeader) ? origUriHeader[0] : origUriHeader;
+
+  if (
+    origUri &&
+    typeof origUri === 'string' &&
+    origUri.startsWith('/api/') &&
+    !origUri.startsWith('/api/index')
+  ) {
+    return origUri;
+  }
+
+  urlObj.searchParams.delete('...path');
+  urlObj.searchParams.delete('path');
+
+  if (
+    urlObj.pathname === '/' ||
+    urlObj.pathname === '/api' ||
+    urlObj.pathname === '/api/index' ||
+    urlObj.pathname === '/api/index.js'
+  ) {
+    urlObj.pathname = '/api/health';
+  } else if (!urlObj.pathname.startsWith('/api/')) {
+    urlObj.pathname = `/api${urlObj.pathname.startsWith('/') ? '' : '/'}${urlObj.pathname}`;
+  }
+
+  const restSearch = urlObj.searchParams.toString();
+  return `${urlObj.pathname}${restSearch ? `?${restSearch}` : ''}`;
+}
+
 function getVercelApp(): express.Express {
   if (cachedApp) return cachedApp;
 
@@ -10,25 +64,7 @@ function getVercelApp(): express.Express {
   const vercelApp = express();
 
   vercelApp.use((req, _res, next) => {
-    const rawPath = req.query.__vercel_path;
-    if (typeof rawPath === 'string' && rawPath.length > 0) {
-      const cleanPath = decodeURIComponent(rawPath).replace(/^\/+/, '');
-      const urlObj = new URL(req.url || '/', 'http://localhost');
-      urlObj.searchParams.delete('__vercel_path');
-      const restSearch = urlObj.searchParams.toString();
-      req.url = `/api/${cleanPath}${restSearch ? `?${restSearch}` : ''}`;
-    } else if (req.url) {
-      const urlObj = new URL(req.url, 'http://localhost');
-      if (urlObj.pathname === '/' || urlObj.pathname === '/api' || urlObj.pathname === '/api/index') {
-        urlObj.pathname = '/api/health';
-      } else if (!urlObj.pathname.startsWith('/api/')) {
-        urlObj.pathname = `/api${urlObj.pathname.startsWith('/') ? '' : '/'}${urlObj.pathname}`;
-      }
-      urlObj.searchParams.delete('...path');
-      urlObj.searchParams.delete('path');
-      const restSearch = urlObj.searchParams.toString();
-      req.url = `${urlObj.pathname}${restSearch ? `?${restSearch}` : ''}`;
-    }
+    req.url = normalizeVercelUrl(req);
     next();
   });
 

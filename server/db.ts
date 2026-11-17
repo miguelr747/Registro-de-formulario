@@ -31,7 +31,11 @@ function resolveDataDir(): string {
 const dataDir = resolveDataDir();
 const dbPath = path.join(dataDir, 'diagnostico.db');
 export const db = new Database(dbPath);
-db.pragma('journal_mode = WAL');
+try {
+  db.pragma('journal_mode = WAL');
+} catch {
+  // Fallback to default SQLite journal mode in constrained environments
+}
 db.pragma('foreign_keys = ON');
 
 export function initDatabase() {

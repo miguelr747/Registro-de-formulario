@@ -25,13 +25,26 @@ export async function apiFetch<T>(url: string, options: RequestInit = {}): Promi
   }
 
   const res = await fetch(url, { ...options, headers });
-  const data = await res.json().catch(() => ({}));
+  const rawText = await res.text();
+  let data: Record<string, unknown> = {};
+  if (rawText) {
+    try {
+      data = JSON.parse(rawText) as Record<string, unknown>;
+    } catch {
+      data = {};
+    }
+  }
   if (!res.ok) {
-    const err = new Error(data.error || `Error ${res.status} en la solicitud.`) as Error & {
+    const fallback =
+      res.status === 404
+        ? `Ruta no encontrada (404) en ${url}. Verifique que la API esté activa en el servidor.`
+        : `Error ${res.status} en la solicitud.`;
+    const errMsg = typeof data.error === 'string' && data.error ? data.error : fallback;
+    const err = new Error(errMsg) as Error & {
       faltantes?: Array<{ id: number; modulo_id: number; texto: string }>;
     };
-    if (data.faltantes) {
-      err.faltantes = data.faltantes;
+    if (Array.isArray(data.faltantes)) {
+      err.faltantes = data.faltantes as Array<{ id: number; modulo_id: number; texto: string }>;
     }
     throw err;
   }

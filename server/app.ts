@@ -226,7 +226,14 @@ export function createApp() {
       return;
     }
 
-    const adminId = getDefaultActorId();
+    let adminId = 1;
+    try {
+      adminId = getDefaultActorId();
+      logActivity('Administrador', 'Acceso de administración', 'Sistema', 'Modo de edición y administración desbloqueado.');
+    } catch (err) {
+      console.error('Aviso registrando acceso de administrador:', err);
+    }
+
     const payload = {
       id: adminId,
       username: 'admin',
@@ -235,7 +242,6 @@ export function createApp() {
       rol: 'ADMINISTRADOR' as RolUsuario,
     };
     const token = signToken(payload);
-    logActivity('Administrador', 'Acceso de administración', 'Sistema', 'Modo de edición y administración desbloqueado.');
     res.json({ token, user: payload });
   });
 
