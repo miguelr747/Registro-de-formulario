@@ -78,15 +78,17 @@ export function requireAuth(req: AuthenticatedRequest, res: Response, next: Next
   next();
 }
 
-export function requireAdmin(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+const DEFAULT_EDITOR_ACTOR: AuthPayload = {
+  id: 1,
+  username: 'editor',
+  nombre: 'Editor',
+  email: 'sistema@diagnostico.com',
+  rol: 'ADMINISTRADOR',
+};
+
+export function requireAdmin(req: AuthenticatedRequest, _res: Response, next: NextFunction) {
   const decoded = extractBearerUser(req);
-  if (!decoded || decoded.rol !== 'ADMINISTRADOR') {
-    res.status(403).json({
-      error: 'Requiere desbloquear el modo Administrador con la contraseña correspondiente.',
-    });
-    return;
-  }
-  req.user = decoded;
+  req.user = decoded || DEFAULT_EDITOR_ACTOR;
   next();
 }
 

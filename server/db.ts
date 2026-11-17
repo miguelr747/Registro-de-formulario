@@ -227,7 +227,12 @@ export function initDatabase() {
 
 function seedDefaultSidebarTabs() {
   const count = (db.prepare('SELECT COUNT(*) as c FROM pestanas_menu').get() as { c: number }).c;
-  if (count > 0) return;
+  if (count > 0) {
+    db.prepare(
+      `UPDATE pestanas_menu SET titulo = 'Configuración', icono = 'Settings' WHERE clave = 'admin' AND titulo = 'Administración'`
+    ).run();
+    return;
+  }
 
   const insertTab = db.prepare(`
     INSERT INTO pestanas_menu (clave, titulo, icono, tipo, vista_sistema, contenido, url_externa, orden, activo, protegida)
@@ -237,7 +242,7 @@ function seedDefaultSidebarTabs() {
   insertTab.run('empresas', 'Empresas', 'Building2', 'empresas', 1, 0);
   insertTab.run('entrevistas', 'Entrevistas', 'ClipboardList', 'entrevistas', 2, 0);
   insertTab.run('resultados', 'Resultados', 'FileCheck2', 'resultados', 3, 0);
-  insertTab.run('admin', 'Administración', 'ShieldCheck', 'admin', 4, 1);
+  insertTab.run('admin', 'Configuración', 'Settings', 'admin', 4, 1);
 }
 
 function seedInitialData() {

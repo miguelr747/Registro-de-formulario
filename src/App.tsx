@@ -1,12 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   Building2,
-  ShieldCheck,
-  Lock,
   Menu,
   X,
 } from 'lucide-react';
-import { apiFetch, getStoredToken, setStoredToken } from './utils/api';
+import { apiFetch, setStoredToken } from './utils/api';
 import { resolveTabIcon } from './utils/tabIcons';
 import type { PestanaMenu, Usuario } from './types';
 import { ToastContainer, type ToastMessage } from './components/Toast';
@@ -21,22 +19,11 @@ import { BancoPreguntasView } from './components/BancoPreguntasView';
 import { CustomTabView } from './components/CustomTabView';
 import { EvaluacionPublicaView } from './components/EvaluacionPublicaView';
 
-const VISITOR_USER: Usuario = {
-  id: 0,
-  nombre: 'Encuestado',
-  username: 'visitante',
-  email: '',
-  rol: 'ENTREVISTADOR',
-  activo: 1,
-  ultimo_acceso: null,
-  created_at: '',
-};
-
-const ADMIN_USER: Usuario = {
+const EDITOR_USER: Usuario = {
   id: 1,
-  nombre: 'Administrador',
-  username: 'admin',
-  email: 'admin@diagnostico.com',
+  nombre: 'Editor',
+  username: 'editor',
+  email: 'sistema@diagnostico.com',
   rol: 'ADMINISTRADOR',
   activo: 1,
   ultimo_acceso: null,
@@ -86,8 +73,8 @@ const DEFAULT_TABS: PestanaMenu[] = [
   {
     id: 4,
     clave: 'admin',
-    titulo: 'Administración',
-    icono: 'ShieldCheck',
+    titulo: 'Configuración',
+    icono: 'Settings',
     tipo: 'sistema',
     vista_sistema: 'admin',
     contenido: '',
@@ -99,7 +86,6 @@ const DEFAULT_TABS: PestanaMenu[] = [
 ];
 
 export default function App() {
-  const [isAdmin, setIsAdmin] = useState(false);
   const [tabs, setTabs] = useState<PestanaMenu[]>(DEFAULT_TABS);
   const [activeTabKey, setActiveTabKey] = useState<string>('entrevistas');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -132,20 +118,8 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    setStoredToken(null);
     loadTabs();
-    const token = getStoredToken();
-    if (!token) return;
-    apiFetch<{ isAdmin: boolean }>('/api/admin/verify')
-      .then((res) => {
-        if (res.isAdmin) {
-          setIsAdmin(true);
-        } else {
-          setStoredToken(null);
-        }
-      })
-      .catch(() => {
-        setStoredToken(null);
-      });
   }, [loadTabs]);
 
   const visibleTabs = tabs.filter((t) => t.activo === 1);
@@ -155,12 +129,6 @@ export default function App() {
       setActiveTabKey(visibleTabs[0].clave);
     }
   }, [visibleTabs, activeTabKey]);
-
-  const handleLockAdmin = () => {
-    setStoredToken(null);
-    setIsAdmin(false);
-    notify('info', 'Modo Administrador bloqueado. La página volvió a modo solo llenado.');
-  };
 
   if (publicToken) {
     return (
@@ -178,7 +146,6 @@ export default function App() {
     );
   }
 
-  const currentUser = isAdmin ? ADMIN_USER : VISITOR_USER;
   const activeTabObj = visibleTabs.find((t) => t.clave === activeTabKey) || visibleTabs[0];
   const currentNavLabel = activeTabObj?.titulo || 'Sistema de Diagnóstico';
 
@@ -190,10 +157,10 @@ export default function App() {
     }
   };
 
-  const openAdminTab = () => {
-    const adminTab = visibleTabs.find((t) => t.protegida === 1 || t.vista_sistema === 'admin');
-    if (adminTab) {
-      setActiveTabKey(adminTab.clave);
+  const openEditorTab = () => {
+    const editorTab = visibleTabs.find((t) => t.protegida === 1 || t.vista_sistema === 'admin');
+    if (editorTab) {
+      setActiveTabKey(editorTab.clave);
     }
   };
 
@@ -207,7 +174,7 @@ export default function App() {
       case 'empresas':
         return (
           <EmpresasView
-            user={currentUser}
+            user={EDITOR_USER}
             onNotify={notify}
             onOpenInterview={handleOpenInterviewFromCompany}
           />
@@ -215,46 +182,30 @@ export default function App() {
       case 'entrevistas':
         return (
           <EntrevistasView
-            user={currentUser}
+            user={EDITOR_USER}
             initialOpenId={openInterviewId}
             onClearInitialOpen={() => setOpenInterviewId(null)}
-            onOpenBancoPreguntas={openAdminTab}
+            onOpenBancoPreguntas={openEditorTab}
             onNotify={notify}
           />
         );
       case 'resultados':
-        return <ResultadosView user={currentUser} onNotify={notify} />;
+        return <ResultadosView user={EDITOR_USER} onNotify={notify} />;
       case 'dashboard':
-        return <DashboardView user={currentUser} onNavigate={(key) => setActiveTabKey(key)} />;
+        return <DashboardView user={EDITOR_USER} onNavigate={(key) => setActiveTabKey(key)} />;
       case 'diagnostico':
-        return <DiagnosticoView user={currentUser} onNotify={notify} />;
+        return <DiagnosticoView user={EDITOR_USER} onNotify={notify} />;
       case 'informes':
         return <InformesView onNotify={notify} />;
       case 'banco':
-        return isAdmin ? (
-          <BancoPreguntasView onNotify={notify} />
-        ) : (
-          <AdminView
-            isAdmin={isAdmin}
-            adminUser={ADMIN_USER}
-            tabs={tabs}
-            onTabsChanged={loadTabs}
-            onUnlockSuccess={() => setIsAdmin(true)}
-            onLockAdmin={handleLockAdmin}
-            onOpenInterview={handleOpenInterviewFromCompany}
-            onNotify={notify}
-          />
-        );
+        return <BancoPreguntasView onNotify={notify} />;
       case 'admin':
       default:
         return (
           <AdminView
-            isAdmin={isAdmin}
-            adminUser={ADMIN_USER}
+            editorUser={EDITOR_USER}
             tabs={tabs}
             onTabsChanged={loadTabs}
-            onUnlockSuccess={() => setIsAdmin(true)}
-            onLockAdmin={handleLockAdmin}
             onOpenInterview={handleOpenInterviewFromCompany}
             onNotify={notify}
           />
@@ -279,66 +230,33 @@ export default function App() {
 
         <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
           {visibleTabs.map((item) => {
-            const isProtectedAdmin = item.protegida === 1 || item.vista_sistema === 'admin';
-            const Icon = isProtectedAdmin ? (isAdmin ? ShieldCheck : Lock) : resolveTabIcon(item.icono);
+            const Icon = resolveTabIcon(item.icono);
             const active = activeTabKey === item.clave;
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setActiveTabKey(item.clave)}
-                className={`w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${
                   active
                     ? 'bg-sky-600 text-white'
                     : 'text-slate-300 hover:bg-white/10 hover:text-white'
                 }`}
               >
-                <span className="flex items-center gap-3 min-w-0">
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="truncate">{item.titulo}</span>
-                </span>
-                {isProtectedAdmin && (
-                  <span
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
-                      isAdmin ? 'bg-emerald-500/20 text-emerald-200' : 'bg-white/10 text-slate-300'
-                    }`}
-                  >
-                    {isAdmin ? 'ON' : 'KEY'}
-                  </span>
-                )}
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{item.titulo}</span>
               </button>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-white/10 space-y-2.5">
+        <div className="p-4 border-t border-white/10">
           <div className="text-xs">
-            <p className="font-semibold text-white">
-              {isAdmin ? 'Modo Administrador' : 'Acceso Directo'}
-            </p>
+            <p className="font-semibold text-white">Edición Abierta</p>
             <p className="text-slate-400 text-[11px] mt-0.5">
-              {isAdmin ? 'Edición completa habilitada' : 'Diligenciamiento de formularios'}
+              Acceso directo a formularios y configuración
             </p>
           </div>
-          {isAdmin ? (
-            <button
-              type="button"
-              onClick={handleLockAdmin}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-200 bg-white/5 hover:bg-white/15 rounded-lg transition-colors"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Bloquear edición</span>
-            </button>
-          ) : (
-            <button
-              type="button"
-              onClick={openAdminTab}
-              className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-sky-200 bg-white/5 hover:bg-white/15 rounded-lg transition-colors"
-            >
-              <Lock className="w-3.5 h-3.5" />
-              <span>Desbloquear administración</span>
-            </button>
-          )}
         </div>
       </aside>
 
@@ -359,8 +277,7 @@ export default function App() {
             </div>
             <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
               {visibleTabs.map((item) => {
-                const isProtectedAdmin = item.protegida === 1 || item.vista_sistema === 'admin';
-                const Icon = isProtectedAdmin ? (isAdmin ? ShieldCheck : Lock) : resolveTabIcon(item.icono);
+                const Icon = resolveTabIcon(item.icono);
                 const active = activeTabKey === item.clave;
                 return (
                   <button
@@ -380,21 +297,6 @@ export default function App() {
                 );
               })}
             </nav>
-            {isAdmin && (
-              <div className="p-4 border-t border-white/10">
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleLockAdmin();
-                    setMobileMenuOpen(false);
-                  }}
-                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-slate-200 bg-white/10 rounded-lg"
-                >
-                  <Lock className="w-3.5 h-3.5" />
-                  <span>Bloquear edición</span>
-                </button>
-              </div>
-            )}
           </aside>
         </div>
       )}
@@ -420,16 +322,9 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-3 shrink-0 text-xs">
-            {isAdmin ? (
-              <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-md">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span>Administrador activo</span>
-              </span>
-            ) : (
-              <span className="text-slate-500 hidden sm:inline">
-                Modo formulario abierto
-              </span>
-            )}
+            <span className="text-slate-500 hidden sm:inline">
+              Edición directa habilitada
+            </span>
           </div>
         </header>
 

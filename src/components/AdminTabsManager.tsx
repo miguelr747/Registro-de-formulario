@@ -7,7 +7,6 @@ import {
   ArrowDown,
   Eye,
   EyeOff,
-  Lock,
 } from 'lucide-react';
 import { apiFetch } from '../utils/api';
 import type { PestanaMenu, TipoPestana } from '../types';
@@ -206,13 +205,8 @@ export function AdminTabsManager({ tabs, onTabsChanged, onNotify }: AdminTabsMan
                           <Icon className="w-4 h-4" />
                         </div>
                         <div>
-                          <p className="font-semibold text-slate-900 flex items-center gap-1.5">
-                            <span>{tab.titulo}</span>
-                            {tab.protegida === 1 && (
-                              <span title="Pestaña protegida (acceso a administración)">
-                                <Lock className="w-3 h-3 text-slate-400" />
-                              </span>
-                            )}
+                          <p className="font-semibold text-slate-900">
+                            {tab.titulo}
                           </p>
                           <p className="text-[11px] font-mono text-slate-400">{tab.clave}</p>
                         </div>
